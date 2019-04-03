@@ -164,14 +164,17 @@ def ap_per_class(tp, conf, pred_cls, target_cls):
 
             # Recall
             recall_curve = tpc / (n_gt + 1e-16)
-            r.append(tpc[-1] / (n_gt + 1e-16))
+            r.append(recall_curve[-1])
 
             # Precision
             precision_curve = tpc / (tpc + fpc)
-            p.append(tpc[-1] / (tpc[-1] + fpc[-1]))
+            p.append(precision_curve[-1])
 
             # AP from recall-precision curve
             ap.append(compute_ap(recall_curve, precision_curve))
+
+            # Plot
+            # plt.plot(recall_curve, precision_curve)
 
     return np.array(ap), unique_classes.astype('int32'), np.array(r), np.array(p)
 
@@ -296,9 +299,9 @@ def compute_loss(p, targets):  # predictions, targets
             pi = pi0[b, a, gj, gi]  # predictions closest to anchors
             tconf[b, a, gj, gi] = 1  # conf
 
-            lxy += k * MSE(torch.sigmoid(pi[..., 0:2]), txy[i])  # xy loss
-            lwh += k * MSE(pi[..., 2:4], twh[i])  # wh loss
-            lcls += (k / 4) * CE(pi[..., 5:], tcls[i])  # class_conf loss
+            lxy += (k * 8) * MSE(torch.sigmoid(pi[..., 0:2]), txy[i])  # xy loss
+            lwh += (k * 4) * MSE(pi[..., 2:4], twh[i])  # wh loss
+            lcls += (k * 1) * CE(pi[..., 5:], tcls[i])  # class_conf loss
 
         # pos_weight = FT([gp[i] / min(gp) * 4.])
         # BCE = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
@@ -321,25 +324,24 @@ def build_targets(model, targets):
 
     txy, twh, tcls, indices = [], [], [], []
     for i, layer in enumerate(get_yolo_layers(model)):
-        nG = model.module_list[layer][0].nG  # grid size
-        anchor_vec = model.module_list[layer][0].anchor_vec
+        layer = model.module_list[layer][0]
 
         # iou of targets-anchors
-        gwh = targets[:, 4:6] * nG
-        iou = [wh_iou(x, gwh) for x in anchor_vec]
+        gwh = targets[:, 4:6] * layer.nG
+        iou = [wh_iou(x, gwh) for x in layer.anchor_vec]
         iou, a = torch.stack(iou, 0).max(0)  # best iou and anchor
 
         # reject below threshold ious (OPTIONAL, increases P, lowers R)
         reject = True
         if reject:
-            j = iou > 0.01
+            j = iou > 0.10
             t, a, gwh = targets[j], a[j], gwh[j]
         else:
             t = targets
 
         # Indices
         b, c = t[:, :2].long().t()  # target image, class
-        gxy = t[:, 2:4] * nG
+        gxy = t[:, 2:4] * layer.nG
         gi, gj = gxy.long().t()  # grid_i, grid_j
         indices.append((b, a, gj, gi))
 
@@ -347,11 +349,12 @@ def build_targets(model, targets):
         txy.append(gxy - gxy.floor())
 
         # Width and height
-        twh.append(torch.log(gwh / anchor_vec[a]))  # yolo method
-        # twh.append(torch.sqrt(gwh / anchor_vec[a]) / 2)  # power method
+        twh.append(torch.log(gwh / layer.anchor_vec[a]))  # yolo method
+        # twh.append(torch.sqrt(gwh / layer.anchor_vec[a]) / 2)  # power method
 
         # Class
         tcls.append(c)
+        assert c.max() <= layer.nC, 'Target classes exceed model classes'
 
     return txy, twh, tcls, indices
 
@@ -384,7 +387,7 @@ def non_max_suppression(prediction, conf_thres=0.5, nms_thres=0.4):
 
         # Filter out confidence scores below threshold
         class_conf, class_pred = pred[:, 5:].max(1)
-        # pred[:, 4] *= class_conf
+        pred[:, 4] *= class_conf
 
         i = (pred[:, 4] > conf_thres) & (pred[:, 2] > min_wh) & (pred[:, 3] > min_wh)
         pred = pred[i]
@@ -399,7 +402,7 @@ def non_max_suppression(prediction, conf_thres=0.5, nms_thres=0.4):
 
         # Box (center x, center y, width, height) to (x1, y1, x2, y2)
         pred[:, :4] = xywh2xyxy(pred[:, :4])
-        pred[:, 4] *= class_conf  # improves mAP from 0.549 to 0.551
+        # pred[:, 4] *= class_conf  # improves mAP from 0.549 to 0.551
 
         # Detections ordered as (x1y1x2y2, obj_conf, class_conf, class_pred)
         pred = torch.cat((pred[:, :5], class_conf.unsqueeze(1), class_pred), 1)
@@ -623,22 +626,20 @@ def plot_wh_methods():  # from utils.utils import *; plot_wh_methods()
     fig.savefig('comparison.jpg', dpi=fig.dpi)
 
 
-def plot_results(start=0):  # from utils.utils import *; plot_results()
-    # Plot YOLO training results file 'results.txt'
+def plot_results(start=0, stop=0):  # from utils.utils import *; plot_results()
+    # Plot training results files 'results*.txt'
     # import os; os.system('wget https://storage.googleapis.com/ultralytics/yolov3/results_v3.txt')
 
     fig = plt.figure(figsize=(14, 7))
     s = ['X + Y', 'Width + Height', 'Confidence', 'Classification', 'Total Loss', 'Precision', 'Recall', 'mAP']
     for f in sorted(glob.glob('results*.txt')):
-        results = np.loadtxt(f, usecols=[2, 3, 4, 5, 6, 9, 10, 11, 12]).T  # column 11 is mAP
-        x = range(start, results.shape[1])
+        results = np.loadtxt(f, usecols=[2, 3, 4, 5, 6, 9, 10, 11]).T  # column 11 is mAP
+        x = range(start, stop if stop else results.shape[1])
         for i in range(8):
             plt.subplot(2, 4, i + 1)
             plt.plot(x, results[i, x], marker='.', label=f)
             plt.title(s[i])
             if i == 0:
                 plt.legend()
-            if i == 7:
-                plt.plot(x, results[i + 1, x], marker='.', label=f)
     fig.tight_layout()
     fig.savefig('results.jpg', dpi=fig.dpi)
