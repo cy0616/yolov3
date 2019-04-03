@@ -236,7 +236,7 @@ def train(
                     title = title + '%10s' % (k)
                 file.write(title + '\n')
                 write_title = False
-        
+
             s = s + '%10.3g' * 3 % (mAP, P, R)
             for k,v in AP_dict.items():
                 s = s + '%10.3g' % (v)
