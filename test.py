@@ -1,5 +1,6 @@
 import argparse
 import json
+import time
 
 from torch.utils.data import DataLoader
 
@@ -32,16 +33,16 @@ def test(
         else:  # darknet format
             _ = load_darknet_weights(model, weights)
 
-        if torch.cuda.device_count() > 1:
-            model = nn.DataParallel(model)
+        # if torch.cuda.device_count() > 1:
+        #     model = nn.DataParallel(model)
     else:
         device = next(model.parameters()).device
 
     # Configure run
     data_cfg = parse_data_cfg(data_cfg)
     test_path = data_cfg['valid']
-    if (os.sep + 'coco' + os.sep) in test_path:  # COCO dataset probable
-        save_json = True  # use pycocotools
+    # if (os.sep + 'coco' + os.sep) in test_path:  # COCO dataset probable
+    #     save_json = True  # use pycocotools
 
     # Dataloader
     dataset = LoadImagesAndLabels(test_path, img_size=img_size)
@@ -61,10 +62,16 @@ def test(
         targets = targets.to(device)
         imgs = imgs.to(device)
 
+        t1 = time.time()
         output = model(imgs)
+        print("model time : %g" % (time.time() - t1))
+        t1 = time.time()
         output = non_max_suppression(output, conf_thres=conf_thres, nms_thres=nms_thres)
+        print("nms time : %g" % (time.time() - t1))
+
 
         # Per image
+        t1 = time.time()
         for si, pred in enumerate(output):
             image_id = int(Path(paths[si]).stem.split('_')[-1])
             labels = targets[targets[:, 0] == si, 1:]
@@ -133,11 +140,13 @@ def test(
                         correct.append(0)
 
             # Convert to Numpy
+
             tp = np.array(correct)
             conf = pred[:, 4].cpu().numpy()
             pred_cls = pred[:, 6].cpu().numpy()
             target_cls = target_cls.cpu().numpy()
             stats.append((tp, conf, pred_cls, target_cls))
+        print("else time : %g" % (time.time() - t1))
 
     # Compute means
     stats_np = [np.concatenate(x, 0) for x in list(zip(*stats))]
@@ -149,48 +158,50 @@ def test(
     print(('%11s%11s' + '%11.3g' * 3) % (seen, len(dataset), mP, mR, mAP))
 
     # Print mAP per class
+    AP_dict={}
     if len(stats_np):
         print('\nmAP Per Class:')
         names = load_classes(data_cfg['names'])
         for c, a in zip(AP_class, AP):
             print('%15s: %-.4f' % (names[c], a))
+            AP_dict[names[c]] = a
 
     # Save JSON
-    if save_json and mAP and len(jdict):
-        imgIds = [int(Path(x).stem.split('_')[-1]) for x in dataset.img_files]
-        with open('results.json', 'w') as file:
-            json.dump(jdict, file)
-
-        from pycocotools.coco import COCO
-        from pycocotools.cocoeval import COCOeval
-
-        # https://github.com/cocodataset/cocoapi/blob/master/PythonAPI/pycocoEvalDemo.ipynb
-        cocoGt = COCO('../coco/annotations/instances_val2014.json')  # initialize COCO ground truth api
-        cocoDt = cocoGt.loadRes('results.json')  # initialize COCO pred api
-
-        cocoEval = COCOeval(cocoGt, cocoDt, 'bbox')
-        cocoEval.params.imgIds = imgIds  # [:32]  # only evaluate these images
-        cocoEval.evaluate()
-        cocoEval.accumulate()
-        cocoEval.summarize()
-        mAP = cocoEval.stats[1]  # update mAP to pycocotools mAP
+    # if save_json and mAP and len(jdict):
+    #     imgIds = [int(Path(x).stem.split('_')[-1]) for x in dataset.img_files]
+    #     with open('results.json', 'w') as file:
+    #         json.dump(jdict, file)
+    #
+    #     from pycocotools.coco import COCO
+    #     from pycocotools.cocoeval import COCOeval
+    #
+    #     # https://github.com/cocodataset/cocoapi/blob/master/PythonAPI/pycocoEvalDemo.ipynb
+    #     cocoGt = COCO('../coco/annotations/instances_val2014.json')  # initialize COCO ground truth api
+    #     cocoDt = cocoGt.loadRes('results.json')  # initialize COCO pred api
+    #
+    #     cocoEval = COCOeval(cocoGt, cocoDt, 'bbox')
+    #     cocoEval.params.imgIds = imgIds  # [:32]  # only evaluate these images
+    #     cocoEval.evaluate()
+    #     cocoEval.accumulate()
+    #     cocoEval.summarize()
+    #     mAP = cocoEval.stats[1]  # update mAP to pycocotools mAP
 
     # F1 score = harmonic mean of precision and recall
     # F1 = 2 * (mP * mR) / (mP + mR)
 
     # Return mAP
-    return mP, mR, mAP
+    return mP, mR, mAP, AP_dict
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(prog='test.py')
     parser.add_argument('--batch-size', type=int, default=32, help='size of each image batch')
-    parser.add_argument('--cfg', type=str, default='cfg/yolov3.cfg', help='cfg file path')
+    parser.add_argument('--cfg', type=str, default='cfg/yolov3_div4.cfg', help='cfg file path')
     parser.add_argument('--data-cfg', type=str, default='cfg/coco.data', help='coco.data file path')
-    parser.add_argument('--weights', type=str, default='weights/yolov3.weights', help='path to weights file')
+    parser.add_argument('--weights', type=str, default='weights/gas_div4/best.pt', help='path to weights file')
     parser.add_argument('--iou-thres', type=float, default=0.5, help='iou threshold required to qualify as detected')
-    parser.add_argument('--conf-thres', type=float, default=0.001, help='object confidence threshold')
-    parser.add_argument('--nms-thres', type=float, default=0.5, help='iou threshold for non-maximum suppression')
+    parser.add_argument('--conf-thres', type=float, default=0.3, help='object confidence threshold')
+    parser.add_argument('--nms-thres', type=float, default=0.45, help='iou threshold for non-maximum suppression')
     parser.add_argument('--save-json', action='store_true', help='save a cocoapi-compatible JSON results file')
     parser.add_argument('--img-size', type=int, default=416, help='size of each image dimension')
     opt = parser.parse_args()

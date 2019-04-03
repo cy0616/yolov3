@@ -20,11 +20,13 @@ def train(
         accumulate=1,
         multi_scale=False,
         freeze_backbone=False,
-        num_workers=4
+        num_workers=4,
+        weights_path='weights'
 ):
-    weights = 'weights' + os.sep
-    latest = weights + 'latest.pt'
-    best = weights + 'best.pt'
+    weights = weights_path
+    latest = os.path.join(weights, 'latest.pt')
+    best = os.path.join(weights, 'best.pt')
+    results_file_path = os.path.join(weights_path,'results.txt')
     device = torch_utils.select_device()
 
     if multi_scale:
@@ -56,7 +58,7 @@ def train(
         del checkpoint  # current, saved
 
     else:  # Initialize model with backbone (optional)
-        if cfg.endswith('yolov3.cfg'):
+        if cfg.startswith('yolov3'):
             cutoff = load_darknet_weights(model, weights + 'darknet53.conv.74')
         elif cfg.endswith('yolov3-tiny.cfg'):
             cutoff = load_darknet_weights(model, weights + 'yolov3-tiny.conv.15')
@@ -72,12 +74,13 @@ def train(
     dataset = LoadImagesAndLabels(train_path, img_size=img_size, augment=True)
 
     # Initialize distributed training
-    if torch.cuda.device_count() > 1:
-        dist.init_process_group(backend=opt.backend, init_method=opt.dist_url, world_size=opt.world_size, rank=opt.rank)
-        model = torch.nn.parallel.DistributedDataParallel(model)
-        sampler = torch.utils.data.distributed.DistributedSampler(dataset)
-    else:
-        sampler = None
+    # if torch.cuda.device_count() > 1:
+    #     dist.init_process_group(backend=opt.backend, init_method=opt.dist_url, world_size=opt.world_size, rank=opt.rank)
+    #     model = torch.nn.parallel.DistributedDataParallel(model)
+    #     sampler = torch.utils.data.distributed.DistributedSampler(dataset)
+    # else:
+    #     sampler = None
+    sampler = None
 
     # Dataloader
     dataloader = DataLoader(dataset,
@@ -186,33 +189,54 @@ def train(
                 os.system('cp ' + latest + ' ' + best)
 
             # Save backup weights every 5 epochs (optional)
-            if epoch > 0 and epoch % 5 == 0:
-                os.system('cp ' + latest + ' ' + weights + 'backup%g.pt' % epoch)
+            if (epoch > 0) & (epoch % 5 == 0):
+                backup_file_name = 'backup{}.pt'.format(epoch)
+                backup_file_path = os.path.join(weights_path, backup_file_name)
+                os.system('cp {} {}'.format(
+                    latest,
+                    backup_file_path,
+                ))
 
         # Calculate mAP
         with torch.no_grad():
-            results = test.test(cfg, data_cfg, batch_size=batch_size, img_size=img_size, model=model)
+            P, R, mAP, AP_dict = test.test(cfg, data_cfg, batch_size=batch_size, img_size=img_size, model=model)
 
         # Write epoch results
-        with open('results.txt', 'a') as file:
-            file.write(s + '%11.3g' * 3 % results + '\n')  # append P, R, mAP
+        write_title = False
+        if not(os.path.exists(results_file_path)):
+            write_title = True
+        with open(results_file_path, 'a') as file:
+            # 写标题
+            if(write_title):
+                title = ('%8s%12s' + '%10s' * 7) % ('Epoch', 'Batch', 'xy', 'wh', 'conf', 'cls', 'total', 'nTargets', 'time')
+                title = title + '%10s' * 3 % ('mAP', 'P', 'R')
+                for k,v in AP_dict.items():
+                    title = title + '%10s' % (k)
+                file.write(title + '\n')
+                write_title = False
+        
+            s = s + '%10.3g' * 3 % (mAP, P, R)
+            for k,v in AP_dict.items():
+                s = s + '%10.3g' % (v)
+            file.write(s + '\n')
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--epochs', type=int, default=270, help='number of epochs')
+    parser.add_argument('--epochs', type=int, default=100, help='number of epochs')
     parser.add_argument('--batch-size', type=int, default=16, help='size of each image batch')
     parser.add_argument('--accumulate', type=int, default=1, help='accumulate gradient x batches before optimizing')
-    parser.add_argument('--cfg', type=str, default='cfg/yolov3.cfg', help='cfg file path')
-    parser.add_argument('--data-cfg', type=str, default='cfg/coco.data', help='coco.data file path')
+    parser.add_argument('--cfg', type=str, default='cfg/yolov3_div4.cfg', help='cfg file path')
+    parser.add_argument('--data-cfg', type=str, default='cfg/gas.data', help='coco.data file path')
     parser.add_argument('--multi-scale', action='store_true', help='random image sizes per batch 320 - 608')
-    parser.add_argument('--img-size', type=int, default=32 * 13, help='pixels')
+    parser.add_argument('--img-size', type=int, default=416, help='pixels')
     parser.add_argument('--resume', action='store_true', help='resume training flag')
     parser.add_argument('--num-workers', type=int, default=4, help='number of Pytorch DataLoader workers')
     parser.add_argument('--dist-url', default='tcp://127.0.0.1:9999', type=str, help='distributed training init method')
     parser.add_argument('--rank', default=0, type=int, help='distributed training node rank')
     parser.add_argument('--world-size', default=1, type=int, help='number of nodes for distributed training')
     parser.add_argument('--backend', default='nccl', type=str, help='distributed backend')
+    parser.add_argument('--weights-path', type=str, default='weights/gas_div4', help='path to store weights')
     opt = parser.parse_args()
     print(opt, end='\n\n')
 
@@ -227,5 +251,6 @@ if __name__ == '__main__':
         batch_size=opt.batch_size,
         accumulate=opt.accumulate,
         multi_scale=opt.multi_scale,
-        num_workers=opt.num_workers
+        num_workers=opt.num_workers,
+        weights_path=opt.weights_path,
     )
