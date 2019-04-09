@@ -10,6 +10,7 @@ import torch
 import torch.nn as nn
 
 from utils import torch_utils
+from utils import focal_loss
 
 # Set printoptions
 torch.set_printoptions(linewidth=1320, precision=5, profile='long')
@@ -281,11 +282,13 @@ def wh_iou(box1, box2):
 
 def compute_loss(p, targets):  # predictions, targets
     FT = torch.cuda.FloatTensor if p[0].is_cuda else torch.FloatTensor
-    lxy, lwh, lcls, lconf = FT([0]), FT([0]), FT([0]), FT([0])
+    lxy, lwh, lcls, lconf, lconf_focal= FT([0]), FT([0]), FT([0]), FT([0]), FT([0])
     txy, twh, tcls, indices = targets
     MSE = nn.MSELoss()
     CE = nn.CrossEntropyLoss()
+    pos_weight = torch.FloatTensor([.4, .6])
     BCE = nn.BCEWithLogitsLoss()
+    FL = focal_loss.FocalLoss()
 
     # Compute losses
     # gp = [x.numel() for x in tconf]  # grid points
@@ -305,7 +308,12 @@ def compute_loss(p, targets):  # predictions, targets
 
         # pos_weight = FT([gp[i] / min(gp) * 4.])
         # BCE = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
-        lconf += (k * 64) * BCE(pi0[..., 4], tconf)  # obj_conf loss
+
+        # obj_loc = torch.nonzero(tconf)
+        pconf = pi0[..., 4]
+
+        lconf += (k * 64) * BCE(pconf, tconf)  # obj_conf loss
+        #lconf_focal += (k * 64) * FL(pconf, tconf)
     loss = lxy + lwh + lconf + lcls
 
     # Add to dictionary

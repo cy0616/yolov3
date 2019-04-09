@@ -14,14 +14,14 @@ def train(
         cfg,
         data_cfg,
         img_size=416,
-        resume=False,
+        resume=True,
         epochs=270,
         batch_size=16,
         accumulate=1,
         multi_scale=False,
         freeze_backbone=False,
         num_workers=4,
-        weights_path='weights',
+        weights_path='weights/',
         transfer=False  # Transfer learning (train only YOLO layers)
 
 ):
@@ -124,7 +124,7 @@ def train(
                     p.requires_grad = False if epoch == 0 else True
 
         mloss = defaultdict(float)  # mean loss
-        for i, (imgs, targets, _, _) in enumerate(dataloader):
+        for i, (imgs, targets, __, _) in enumerate(dataloader):
             imgs = imgs.to(device)
             targets = targets.to(device)
 
@@ -245,8 +245,8 @@ def train(
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--epochs', type=int, default=100, help='number of epochs')
-    parser.add_argument('--batch-size', type=int, default=16, help='size of each image batch')
+    parser.add_argument('--epochs', type=int, default=250, help='number of epochs')
+    parser.add_argument('--batch-size', type=int, default=32, help='size of each image batch')
     parser.add_argument('--accumulate', type=int, default=1, help='accumulate gradient x batches before optimizing')
     parser.add_argument('--cfg', type=str, default='cfg/yolov3_div4.cfg', help='cfg file path')
     parser.add_argument('--data-cfg', type=str, default='cfg/gas.data', help='coco.data file path')
@@ -259,7 +259,7 @@ if __name__ == '__main__':
     parser.add_argument('--rank', default=0, type=int, help='distributed training node rank')
     parser.add_argument('--world-size', default=1, type=int, help='number of nodes for distributed training')
     parser.add_argument('--backend', default='nccl', type=str, help='distributed backend')
-    parser.add_argument('--weights-path', type=str, default='weights/gas_div4', help='path to store weights')
+    parser.add_argument('--weights-path', type=str, default='weights/focal_loss_compare/', help='path to store weights')
     opt = parser.parse_args()
     print(opt, end='\n\n')
 
