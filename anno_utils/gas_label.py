@@ -40,7 +40,7 @@ def convert_annotation(xml_in_dir, labels_out_dir, image_id):
     h = int(size.find('height').text)
 
     for obj in root.iter('object'):
-        difficult = obj.find('Difficult').text
+        difficult = obj.find('difficult').text
         cls = obj.find('name').text
         if cls not in classes or int(difficult) == 1:
             continue
@@ -55,7 +55,7 @@ def convert_annotation(xml_in_dir, labels_out_dir, image_id):
 wd = getcwd()
 
 extend = "jpg"
-dataset_root = r"/data/cy/yolo_dataset/DCjingsai"
+dataset_root = r"/home/bupt/cy/yolo/yolov3/data/gas_test"
 img_dir = os.path.join(dataset_root, "images")
 xml_in_dir = os.path.join(dataset_root, "xml")
 labels_out_dir = os.path.join(dataset_root, "labels")
@@ -63,7 +63,7 @@ labels_out_dir = os.path.join(dataset_root, "labels")
 image_ids = glob.glob(os.path.join(img_dir, "*.{}".format(extend)))
 image_ids = [os.path.basename(i).split(".")[0] for i in image_ids]
 
-list_file = open(os.path.join(dataset_root, 'train_dc_pytorch.txt'), 'w')
+list_file = open(os.path.join(dataset_root, 'test_gas_pytorch.txt'), 'w')
 for image_id in image_ids:
     if (os.path.exists(os.path.join(xml_in_dir, image_id) + ".xml")):
         list_file.write(os.path.join(img_dir, image_id + '.{}\n'.format(extend)))

@@ -1,24 +1,24 @@
-1¡¢xml_parse.py  ½«xml¸ñÊ½µÄ±ê×¢ÎÄ¼ş£¬×ª»»³ÉÓÃÓÚ²âÊÔmAPµÄtxt¸ñÊ½ÎÄ¼ş
+ï»¿1ã€xml_parse.py  å°†xmlæ ¼å¼çš„æ ‡æ³¨æ–‡ä»¶ï¼Œè½¬æ¢æˆç”¨äºæµ‹è¯•mAPçš„txtæ ¼å¼æ–‡ä»¶
 
-2¡¢to_xml.py  ½«yoloÉú³ÉµÄ±ê×¢ÎÄ¼ş×ª»»³ÉlabelimgµÄxml¸ñÊ½
+2ã€to_xml.py  å°†yoloç”Ÿæˆçš„æ ‡æ³¨æ–‡ä»¶è½¬æ¢æˆlabelimgçš„xmlæ ¼å¼
 
-3¡¢convert_anno.py  ½«¶à¸ötxt±ê×¢ÎÄ¼ş»ã¼¯ÓÃÓÚyoloÄ£ĞÍÑµÁ·µÄµ¥¸ötxt±ê×¢ÎÄ¼ş
+3ã€convert_anno.py  å°†å¤šä¸ªtxtæ ‡æ³¨æ–‡ä»¶æ±‡é›†ç”¨äºyoloæ¨¡å‹è®­ç»ƒçš„å•ä¸ªtxtæ ‡æ³¨æ–‡ä»¶
 
-4¡¢hash.py  ¹şÏ£¸ĞÖªËã·¨£¬¼ÆËãÍ¼Æ¬ÏàËÆ¶È
+4ã€hash.py  å“ˆå¸Œæ„ŸçŸ¥ç®—æ³•ï¼Œè®¡ç®—å›¾ç‰‡ç›¸ä¼¼åº¦
 
-5¡¢gas_label.py
+5ã€gas_label.py
 
-ÓÉhttps://github.com/pjreddie/darknet/tree/master/scripts/voc_label.pyĞŞ¸Ä
-ÓÃÓÚ½«×Ô¼ºÊı¾İ¼¯µÄxml±ê×¢×ª»»³Éyolo v3·ç¸ñµÄ¹éÒ»»¯±ê×¢ÎÄ¼ş£º¼´¹éÒ»»¯ºóµÄ[ÖĞĞÄµãx£¬ÖĞĞÄµãy£¬w£¬h]
+ç”±https://github.com/pjreddie/darknet/tree/master/scripts/voc_label.pyä¿®æ”¹
+ç”¨äºå°†è‡ªå·±æ•°æ®é›†çš„xmlæ ‡æ³¨è½¬æ¢æˆyolo v3é£æ ¼çš„å½’ä¸€åŒ–æ ‡æ³¨æ–‡ä»¶ï¼šå³å½’ä¸€åŒ–åçš„[ä¸­å¿ƒç‚¹xï¼Œä¸­å¿ƒç‚¹yï¼Œwï¼Œh]
 
-ÊäÈë£º
-extend£ºÍ¼Æ¬À©Õ¹Ãû
-dataset_root£ºÊı¾İ¼¯¸ùÄ¿Â¼
-img_dir£ºÍ¼Æ¬Ä¿Â¼
-xml_in_dir£ºÔ­×ø±êĞÍxml±ê×¢ÎÄ¼şÄ¿Â¼
-labels_out_dir£ºÉú³ÉµÄyolo v3¹éÒ»»¯¸ñÊ½±ê×¢´æ·ÅÄ¿Â¼
-list_file£ºÍ¼Æ¬Â·¾¶ÎÄ¼ş
+è¾“å…¥ï¼š
+extendï¼šå›¾ç‰‡æ‰©å±•å
+dataset_rootï¼šæ•°æ®é›†æ ¹ç›®å½•
+img_dirï¼šå›¾ç‰‡ç›®å½•
+xml_in_dirï¼šåŸåæ ‡å‹xmlæ ‡æ³¨æ–‡ä»¶ç›®å½•
+labels_out_dirï¼šç”Ÿæˆçš„yolo v3å½’ä¸€åŒ–æ ¼å¼æ ‡æ³¨å­˜æ”¾ç›®å½•
+list_fileï¼šå›¾ç‰‡è·¯å¾„æ–‡ä»¶
 
 
-6¡¢check_gas_label.py
-gas_labelÎÄ¼şµÄÄæ²Ù×÷£¬¼ì²é±ê×¢µÄx1,y1,x2,y2µ½x,y,w,hµÄ×ª»»ÊÇ·ñÕıÈ·
+6ã€check_gas_label.py
+gas_labelæ–‡ä»¶çš„é€†æ“ä½œï¼Œæ£€æŸ¥æ ‡æ³¨çš„x1,y1,x2,y2åˆ°x,y,w,hçš„è½¬æ¢æ˜¯å¦æ­£ç¡®

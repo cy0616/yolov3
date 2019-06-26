@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader
 from models import *
 from utils.datasets import *
 from utils.utils import *
-
+os.environ['CUDA_VISIBLE_DEVICES'] = '1'
 
 def test(
         cfg,
@@ -58,6 +58,7 @@ def test(
     mP, mR, mAP, mAPj = 0.0, 0.0, 0.0, 0.0
     jdict, tdict, stats, AP, AP_class = [], [], [], [], []
     coco91class = coco80_to_coco91_class()
+    model_time_avg, nms_time_avg, else_time_avg = 0.0, 0.0, 0.0
     for batch_i, (imgs, targets, paths, shapes) in enumerate(tqdm(dataloader, desc='Calculating mAP')):
         targets = targets.to(device)
         imgs = imgs.to(device)
@@ -65,9 +66,11 @@ def test(
         t1 = time.time()
         output = model(imgs)
         print("model time : %g" % (time.time() - t1))
+        model_time_avg = model_time_avg + time.time() - t1
         t1 = time.time()
         output = non_max_suppression(output, conf_thres=conf_thres, nms_thres=nms_thres)
         print("nms time : %g" % (time.time() - t1))
+        nms_time_avg = nms_time_avg + time.time() - t1
 
 
         # Per image
@@ -131,7 +134,8 @@ def test(
             stats.append((tp, conf, pred_cls, tcls))
 
         print("else time : %g" % (time.time() - t1))
-
+        else_time_avg = else_time_avg + time.time() - t1
+    print("model_time_avg:{}, nms_time_avg:{}, else_time_avg:{} ".format(model_time_avg/5000, nms_time_avg/5000, else_time_avg/5000 ))
     # Compute means
     stats_np = [np.concatenate(x, 0) for x in list(zip(*stats))]
     if len(stats_np):
@@ -180,9 +184,9 @@ def test(
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(prog='test.py')
     parser.add_argument('--batch-size', type=int, default=32, help='size of each image batch')
-    parser.add_argument('--cfg', type=str, default='cfg/yolov3_div4.cfg', help='cfg file path')
+    parser.add_argument('--cfg', type=str, default='cfg/yolov3_div16.cfg', help='cfg file path')
     parser.add_argument('--data-cfg', type=str, default='cfg/coco.data', help='coco.data file path')
-    parser.add_argument('--weights', type=str, default='weights/gas_div4/best.pt', help='path to weights file')
+    parser.add_argument('--weights', type=str, default='weights/gas_div_experiment/div_16/best.pt', help='path to weights file')
     parser.add_argument('--iou-thres', type=float, default=0.5, help='iou threshold required to qualify as detected')
     parser.add_argument('--conf-thres', type=float, default=0.3, help='object confidence threshold')
     parser.add_argument('--nms-thres', type=float, default=0.45, help='iou threshold for non-maximum suppression')

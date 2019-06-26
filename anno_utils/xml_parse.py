@@ -4,7 +4,7 @@ import xml.dom.minidom
 import glob
 import os
 
-file = glob.glob(r'C:\Users\cy\Desktop\download\yolo\gas_station\gas_station_img 标完的\*.xml')
+file = glob.glob(r'/home/bupt/cy/yolo/yolov3/data/coffee_test/xml/*.xml')
 for f in file:
     (filename, extension) = os.path.splitext(f)
     with open (filename+".txt",'w') as out_file_txt:

@@ -302,8 +302,8 @@ def compute_loss(p, targets):  # predictions, targets
             pi = pi0[b, a, gj, gi]  # predictions closest to anchors
             tconf[b, a, gj, gi] = 1  # conf
 
-            lxy += (k * 8) * MSE(torch.sigmoid(pi[..., 0:2]), txy[i])  # xy loss
-            lwh += (k * 4) * MSE(pi[..., 2:4], twh[i])  # wh loss
+            lxy += (k * 4) * MSE(torch.sigmoid(pi[..., 0:2]), txy[i])  # xy loss default 8*
+            lwh += (k * 4) * MSE(pi[..., 2:4], twh[i])  # wh loss default 4*
             lcls += (k * 1) * CE(pi[..., 5:], tcls[i])  # class_conf loss
 
         # pos_weight = FT([gp[i] / min(gp) * 4.])
@@ -312,13 +312,14 @@ def compute_loss(p, targets):  # predictions, targets
         # obj_loc = torch.nonzero(tconf)
         pconf = pi0[..., 4]
 
-        lconf += (k * 64) * BCE(pconf, tconf)  # obj_conf loss
-        #lconf_focal += (k * 64) * FL(pconf, tconf)
-    loss = lxy + lwh + lconf + lcls
+        #lconf += (k * 64) * BCE(pconf, tconf)  # obj_conf loss default 64*
+        lconf_focal += (k * 64) * FL(pconf, tconf)
+    loss = lxy + lwh + lconf_focal + lcls
+    #loss = lxy + lwh + lconf + lcls
 
     # Add to dictionary
     d = defaultdict(float)
-    losses = [loss.item(), lxy.item(), lwh.item(), lconf.item(), lcls.item()]
+    losses = [loss.item(), lxy.item(), lwh.item(), lconf_focal.item(), lcls.item()]
     for name, x in zip(['total', 'xy', 'wh', 'conf', 'cls'], losses):
         d[name] = x
 
@@ -375,7 +376,7 @@ def non_max_suppression(prediction, conf_thres=0.5, nms_thres=0.4):
     Returns detections with shape:
         (x1, y1, x2, y2, object_conf, class_conf, class)
     """
-
+    import time
     min_wh = 2  # (pixels) minimum box width and height
 
     output = [None] * len(prediction)
@@ -394,6 +395,7 @@ def non_max_suppression(prediction, conf_thres=0.5, nms_thres=0.4):
         #   multivariate_normal.pdf(x, mean=mat['class_mu'][c, :2], cov=mat['class_cov'][c, :2, :2])
 
         # Filter out confidence scores below threshold
+        # time1 = time.time()
         class_conf, class_pred = pred[:, 5:].max(1)
         pred[:, 4] *= class_conf
 
@@ -420,10 +422,11 @@ def non_max_suppression(prediction, conf_thres=0.5, nms_thres=0.4):
 
         det_max = []
         nms_style = 'MERGE'  # 'OR' (default), 'AND', 'MERGE' (experimental)
+        # print("@@@@@@@@step1 time : {}\n".format(time.time()-time1))
         for c in pred[:, -1].unique():
             dc = pred[pred[:, -1] == c]  # select class c
             dc = dc[:min(len(dc), 100)]  # limit to first 100 boxes: https://github.com/ultralytics/yolov3/issues/117
-
+            # time1 = time.time()
             # Non-maximum suppression
             if nms_style == 'OR':  # default
                 # METHOD1
@@ -450,13 +453,16 @@ def non_max_suppression(prediction, conf_thres=0.5, nms_thres=0.4):
                     dc = dc[1:][iou < nms_thres]  # remove ious > threshold
 
             elif nms_style == 'MERGE':  # weighted mixture box
+                loop = 0
                 while len(dc):
                     i = bbox_iou(dc[0], dc) > nms_thres  # iou with other boxes
                     weights = dc[i, 4:5]
                     dc[0, :4] = (weights * dc[i, :4]).sum(0) / weights.sum()
                     det_max.append(dc[:1])
                     dc = dc[i == 0]
-
+                    loop += 1
+            # print("@@@@@@@@step2 time : {}\n".format(time.time() - time1))
+            #print("@@@@@@@@image i loop {} times. \n".format(loop))
         if len(det_max):
             det_max = torch.cat(det_max)  # concatenate
             output[image_i] = det_max[(-det_max[:, 4]).argsort()]  # sort

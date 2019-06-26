@@ -6,6 +6,7 @@ from models import *
 from utils.datasets import *
 from utils.utils import *
 
+os.environ['CUDA_VISIBLE_DEVICES'] = '1'
 
 def detect(
         cfg,
@@ -19,7 +20,7 @@ def detect(
         save_txt=False,
         save_images=True,
         webcam=False,
-        gas=False,
+        gas=True,
 ):
     device = torch_utils.select_device()
     if os.path.exists(output):
@@ -27,6 +28,9 @@ def detect(
     os.makedirs(output)  # make new output folder
 
     if (gas):
+        #for coffee test map
+        # mAP_output = "/home/bupt/cy/yolo/yolov3/mAP/predicted"
+        # for gas test map
         mAP_output = "/home/bupt/cy/yolo/keras-yolo3/mAP/predicted"
         os.system('rm -rf ' + mAP_output)
         os.makedirs(mAP_output, exist_ok=True)
@@ -85,6 +89,8 @@ def detect(
                     results_txt_path = results_txt_path.replace('.jpg', '.txt').replace('.png', '.txt')
                     with open(results_txt_path, 'a') as file:
                         class_name = classes[int(cls)]
+                        if (class_name not in ["person","car"]):
+                            continue
                         file.write(('%s %.2f %g %g %g %g \n') % (class_name, conf, *xyxy))
 
                 if save_txt:  # Write to file
@@ -121,12 +127,12 @@ def detect(
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--cfg', type=str, default='cfg/yolov3_div4.cfg', help='cfg file path')
+    parser.add_argument('--cfg', type=str, default='cfg/yolov3_2class.cfg', help='cfg file path')
     parser.add_argument('--data-cfg', type=str, default='cfg/gas.data', help='path to data config file')
-    parser.add_argument('--weights', type=str, default='weights/gas_div4/best.pt', help='path to weights file')
+    parser.add_argument('--weights', type=str, default='weights/yolov3/focal_loss/backup205.pt', help='path to weights file')
     parser.add_argument('--images', type=str, default='data/gas_test/images', help='path to images')
     parser.add_argument('--img-size', type=int, default=416, help='size of each image dimension')
-    parser.add_argument('--conf-thres', type=float, default=0.3, help='object confidence threshold')
+    parser.add_argument('--conf-thres', type=float, default=0.5, help='object confidence threshold')
     parser.add_argument('--nms-thres', type=float, default=0.5, help='iou threshold for non-maximum suppression')
     parser.add_argument('--output-folder', type=str, default='output', help='path to outputs')
     parser.add_argument('--gas', type=bool, default=True)

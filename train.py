@@ -9,6 +9,7 @@ from models import *
 from utils.datasets import *
 from utils.utils import *
 
+os.environ['CUDA_VISIBLE_DEVICES'] = '1'
 
 def train(
         cfg,
@@ -64,25 +65,35 @@ def train(
                 p.requires_grad = True if p.shape[0] == nf else False
 
         else:  # resume from latest.pt
-            chkpt = torch.load(latest, map_location=device)  # load checkpoint
-            model.load_state_dict(chkpt['model'])
+            # 层的名称相同（k相同） 并且 层的shape相同
+            chkpt = torch.load(latest, map_location=device)
+            model_dict = model.state_dict()
+            pretrained_dict = {k: v for k, v in chkpt['model'].items() if
+                               (k in model_dict and v.shape == model_dict[k].shape)}
+            model_dict.update(pretrained_dict)
+            model.load_state_dict(model_dict)
+
+            # 原来的代码
+            # chkpt = torch.load(latest, map_location=device)  # load checkpoint
+            # model.load_state_dict(chkpt['model'])
 
         start_epoch = chkpt['epoch'] + 1
-        if chkpt['optimizer'] is not None:
-            optimizer.load_state_dict(chkpt['optimizer'])
-            best_loss = chkpt['best_loss']
+        # if chkpt['optimizer'] is not None:
+        #     optimizer.load_state_dict(chkpt['optimizer'])
+        #     best_loss = chkpt['best_loss']
         del chkpt
 
     else:  # Initialize model with backbone (optional)
         if cfg.startswith('yolov3'):
-            cutoff = load_darknet_weights(model, weights + 'darknet53.conv.74')
+
+            cutoff = load_darknet_weights(model, os.path.join(weights, 'darknet53.conv.74'))
         elif cfg.endswith('yolov3-tiny.cfg'):
-            cutoff = load_darknet_weights(model, weights + 'yolov3-tiny.conv.15')
+            cutoff = load_darknet_weights(model, os.path.join(weights, 'yolov3-tiny.conv.15') )
         else:
-            cutoff = load_darknet_weights(model, weights + 'darknet53.conv.74')
+            cutoff = load_darknet_weights(model, os.path.join(weights, 'darknet53.conv.74'))
 
     # Set scheduler (reduce lr at epoch 250)
-    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[250], gamma=0.1, last_epoch=start_epoch - 1)
+    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[250], gamma=0.1, last_epoch= -1)
 
     # Dataset
     dataset = LoadImagesAndLabels(train_path, img_size=img_size, augment=True)
@@ -95,6 +106,12 @@ def train(
     # else:
     #     sampler = None
     sampler = None
+
+    # from thop import profile
+    # model.cpu()
+    # flops, params = profile(
+    #     model, input_size=(1, 3, 416, 416))
+    # print("flops{}, params{}".format(flops/1000000, params))
 
     # Dataloader
     dataloader = DataLoader(dataset,
@@ -204,7 +221,7 @@ def train(
 
             # Save backup every 10 epochs (optional)
             if epoch > 0 and epoch % 10 == 0:
-                torch.save(chkpt, weights + 'backup%g.pt' % epoch)
+                torch.save(chkpt, os.path.join(weights, 'backup%g.pt' % epoch))
 
 
             # Save backup weights every 5 epochs (optional)
@@ -245,10 +262,10 @@ def train(
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--epochs', type=int, default=250, help='number of epochs')
-    parser.add_argument('--batch-size', type=int, default=32, help='size of each image batch')
+    parser.add_argument('--epochs', type=int, default=301, help='number of epochs')
+    parser.add_argument('--batch-size', type=int, default=8, help='size of each image batch')
     parser.add_argument('--accumulate', type=int, default=1, help='accumulate gradient x batches before optimizing')
-    parser.add_argument('--cfg', type=str, default='cfg/yolov3_div4.cfg', help='cfg file path')
+    parser.add_argument('--cfg', type=str, default='cfg/yolov3_2class.cfg', help='cfg file path')
     parser.add_argument('--data-cfg', type=str, default='cfg/gas.data', help='coco.data file path')
     parser.add_argument('--multi-scale', action='store_true', help='random image sizes per batch 320 - 608')
     parser.add_argument('--img-size', type=int, default=416, help='pixels')
@@ -259,7 +276,7 @@ if __name__ == '__main__':
     parser.add_argument('--rank', default=0, type=int, help='distributed training node rank')
     parser.add_argument('--world-size', default=1, type=int, help='number of nodes for distributed training')
     parser.add_argument('--backend', default='nccl', type=str, help='distributed backend')
-    parser.add_argument('--weights-path', type=str, default='weights/focal_loss_compare/', help='path to store weights')
+    parser.add_argument('--weights-path', type=str, default='weights/yolov3/focal_loss', help='path to store weights')
     opt = parser.parse_args()
     print(opt, end='\n\n')
 
